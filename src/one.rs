@@ -9,9 +9,6 @@ pub fn solve1(input: Vec<String>) -> u64 {
                 .filter_map(|c| c.to_digit(10).map(|d| d as u64));
             combine_digits(digits)
         })
-        .inspect(|x| {
-            let _ = dbg!(x);
-        })
         .sum()
 }
 

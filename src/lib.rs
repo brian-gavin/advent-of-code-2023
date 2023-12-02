@@ -10,7 +10,7 @@ pub mod one;
 // pub mod six;
 // pub mod ten;
 // pub mod three;
-// pub mod two;
+pub mod two;
 
 pub fn read_input() -> io::Result<Vec<String>> {
     io::stdin().lines().collect()
