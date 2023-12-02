@@ -11,14 +11,13 @@ impl Set {
     }
 }
 
-pub fn solve1(input: Vec<String>) -> usize {
+pub fn solve1(input: crate::Input) -> usize {
     const BAG: Set = Set {
         red: 12,
         green: 13,
         blue: 14,
     };
     input
-        .into_iter()
         .filter_map(|line| {
             let (n, mut game) = parse_line(&line);
             game.all(|set| set.blue <= BAG.blue && set.green <= BAG.green && set.red <= BAG.red)
@@ -60,9 +59,8 @@ fn game_number_detais(line: &str) -> (usize, &str) {
     (game, details)
 }
 
-pub fn solve2(input: Vec<String>) -> u32 {
+pub fn solve2(input: crate::Input) -> u32 {
     input
-        .into_iter()
         .map(|line| {
             let (_, sets) = parse_line(&line);
             sets.fold(Set::default(), |fewest_bag, set| Set {

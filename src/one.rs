@@ -1,8 +1,7 @@
 use std::str::Chars;
 
-pub fn solve1(input: Vec<String>) -> u64 {
+pub fn solve1(input: crate::Input) -> u64 {
     input
-        .into_iter()
         .map(|line| {
             let digits = line
                 .chars()
@@ -18,9 +17,8 @@ fn combine_digits(mut digits: impl Iterator<Item = u64>) -> u64 {
     first * 10 + last
 }
 
-pub fn solve2(input: Vec<String>) -> u64 {
+pub fn solve2(input: crate::Input) -> u64 {
     input
-        .into_iter()
         .map(|line| {
             let digits = parse_line(&line);
             combine_digits(digits)

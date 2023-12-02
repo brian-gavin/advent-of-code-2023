@@ -12,6 +12,16 @@ pub mod one;
 // pub mod three;
 pub mod two;
 
-pub fn read_input() -> io::Result<Vec<String>> {
-    io::stdin().lines().collect()
+pub struct Input(io::Lines<io::StdinLock<'static>>);
+
+impl Iterator for Input {
+    type Item = String;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|r| r.expect("io error"))
+    }
+}
+
+pub fn read_input() -> Input {
+    Input(io::stdin().lines())
 }
