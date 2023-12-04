@@ -3,7 +3,7 @@ use std::io;
 // pub mod eight;
 // pub mod eleven;
 // pub mod five;
-// pub mod four;
+pub mod four;
 // pub mod nine;
 pub mod one;
 // pub mod seven;
