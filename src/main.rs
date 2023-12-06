@@ -14,7 +14,14 @@ macro_rules! generate_runner {
     };
 }
 
-generate_runner!((1, one), (2, two), (3, three), (4, four), (5, five));
+generate_runner!(
+    (1, one),
+    (2, two),
+    (3, three),
+    (4, four),
+    (5, five),
+    (6, six)
+);
 
 fn main() {
     let args: Vec<_> = args().collect();
