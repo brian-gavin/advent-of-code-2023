@@ -10,6 +10,7 @@ pub mod seven;
 pub mod six;
 pub mod ten;
 pub mod three;
+pub mod twelve;
 pub mod two;
 
 pub struct Input(io::Lines<io::StdinLock<'static>>);
