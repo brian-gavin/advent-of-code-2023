@@ -1,20 +1,15 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::collections::HashMap;
 
 use crate::Input;
-use rayon::prelude::*;
 
 pub fn solve1(input: Input) -> usize {
-    let mut input = parse_input(input);
-    input
-        .par_iter_mut()
-        .map(|(states, targets)| arrangements(states, &targets))
-        .sum()
+    solve(parse_input(input))
 }
 
 fn combinatorial_explosion_bait(
-    (states, targets): &(Vec<SpringState>, Vec<usize>),
+    (states, targets): (Vec<SpringState>, Vec<usize>),
 ) -> (Vec<SpringState>, Vec<usize>) {
-    fn explode<T: Copy>(v: &Vec<T>, sep: Option<T>) -> Vec<T> {
+    fn explode<T: Copy>(v: Vec<T>, sep: Option<T>) -> Vec<T> {
         let mut v2 = v.clone();
         for _ in 0..5 {
             if let Some(sep) = sep {
@@ -28,15 +23,21 @@ fn combinatorial_explosion_bait(
 }
 
 pub fn solve2(input: Input) -> usize {
-    let input = parse_input(input);
+    solve(
+        parse_input(input)
+            .into_iter()
+            .map(|t| combinatorial_explosion_bait(t)),
+    )
+}
+
+fn solve(input: impl Iterator<Item = (Vec<SpringState>, Vec<usize>)>) -> usize {
+    let mut memoize = Map::new();
+    let input = input.collect::<Vec<_>>();
+    let mut sum = 0;
     input
-        .par_iter()
-        .map(|t| combinatorial_explosion_bait(t))
-        .enumerate()
-        .map(|(i, (mut states, targets))| (i, arrangements(&mut states, &targets)))
-        .inspect(|(i, _)| println!("finished line: {}", i))
-        .map(|t| t.1)
-        .sum()
+        .iter()
+        .for_each(|(states, targets)| sum += arrangements(&mut memoize, states, targets));
+    sum
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -71,144 +72,79 @@ fn debug_string(states: &[SpringState]) -> String {
     })
 }
 
-fn arrangements(states: &mut [SpringState], targets: &[usize]) -> usize {
-    let unknowns = states
-        .iter()
-        .enumerate()
-        .filter(|t| *t.1 == Unknown)
-        .map(|t| t.0)
-        .collect::<Vec<_>>();
-    let total_damaged: usize = targets.iter().sum();
-    let current_damaged = states.iter().filter(|s| **s == Damaged).count();
-    // eprintln!("{:?}", targets);
-    let mut solutions = 0;
-    compute_states(
-        &mut solutions,
-        states,
-        &unknowns,
-        current_damaged,
-        total_damaged,
-        targets,
-    );
-    solutions
+fn clone_append<T: Clone>(v: &Vec<T>, t: T) -> Vec<T> {
+    let mut v = v.clone();
+    v.push(t);
+    v
 }
 
-fn compute_states(
-    solutions: &mut usize,
-    states: &mut [SpringState],
-    unknowns: &[usize],
-    current_damaged: usize,
-    target_damaged: usize,
-    targets: &[usize],
-) {
-    // eprintln!( "{} {:?} {} {}", debug_string(states), unknowns, current_damaged, target_damaged);
-    if is_solution(states, unknowns, targets) {
-        *solutions += 1;
-    } else {
-        let Some((idx, unknowns)) = unknowns.split_first().map(|t| (*t.0, t.1)) else {
-            return;
+type K<'a> = (&'a [SpringState], &'a [usize]);
+type Map<'a> = HashMap<K<'a>, usize>;
+
+fn arrangements<'a>(
+    memoize: &mut Map<'a>,
+    states: &'a [SpringState],
+    targets: &'a [usize],
+) -> usize {
+    fn f<'a>(memoize: &mut Map<'a>, states: &'a [SpringState], targets: &'a [usize]) -> usize {
+        if (states.len() as isize)
+            < (targets.len() as isize - 1 + targets.iter().sum::<usize>() as isize)
+        {
+            return 0;
+        }
+        let Some((cur, states)) = states.split_first() else {
+            return if targets.is_empty() { 1 } else { 0 };
         };
-        // dbg!(idx, unknowns);
-        for s in candidates(unknowns, current_damaged, target_damaged) {
-            // dbg!(s);
-            states[idx] = s;
-            let current_damaged = if s == Damaged {
-                current_damaged + 1
+        let Some((target_run, rest_targets)) = targets.split_first().map(|t| (*t.0, t.1)) else {
+            return if *cur != Damaged && states.iter().find(|s| **s == Damaged).is_none() {
+                1
             } else {
-                current_damaged
+                0
             };
-            compute_states(
-                solutions,
-                states,
-                unknowns,
-                current_damaged,
-                target_damaged,
-                targets,
-            );
+        };
+        fn damaged<'a>(
+            memoize: &mut Map<'a>,
+            states: &'a [SpringState],
+            target_run: usize,
+            rest_targets: &'a [usize],
+        ) -> usize {
+            if target_run >= states.len() {
+                return 0;
+            }
+            if states.iter().take(target_run).any(|s| *s == Operational) {
+                return 0;
+            }
+            if states[target_run] == Damaged {
+                return 0;
+            }
+            arrangements(memoize, &states[target_run..], rest_targets)
+        }
+        match cur {
+            Damaged => damaged(memoize, states, target_run - 1, rest_targets),
+            Operational => arrangements(memoize, states, targets),
+            Unknown => {
+                damaged(memoize, states, target_run - 1, rest_targets)
+                    + arrangements(memoize, states, targets)
+            }
         }
     }
-}
-
-fn candidates(
-    unknowns: &[usize],
-    current_damaged: usize,
-    target_damaged: usize,
-) -> Vec<SpringState> {
-    if current_damaged + unknowns.len() < target_damaged - 1 || current_damaged > target_damaged {
-        vec![]
-    } else if current_damaged == target_damaged {
-        vec![Operational]
+    let k = &(states, targets);
+    let x = if memoize.contains_key(k) {
+        *memoize.get(k).unwrap()
     } else {
-        vec![Damaged, Operational]
-    }
+        let v = f(memoize, states, targets);
+        memoize.insert(*k, v);
+        *memoize.get(&k).unwrap()
+    };
+    eprintln!("{} {:?} = {}", debug_string(states), targets, x);
+    x
 }
 
-fn is_solution(states: &[SpringState], unknowns: &[usize], targets: &[usize]) -> bool {
-    unknowns.is_empty() && eq_runs_of_damaged(states, targets)
-}
-
-fn eq_runs_of_damaged(states: &[SpringState], targets: &[usize]) -> bool {
-    type Map = HashMap<Vec<SpringState>, Vec<usize>>;
-    thread_local! {
-        static MEMOIZE: RefCell<Map> = RefCell::new(HashMap::from([
-                (vec![], vec![]),
-                (vec![Unknown], vec![]),
-                (vec![Damaged], vec![1]),
-                (vec![Operational], vec![]),
-            ]));
-    }
-    fn memoize_prefixes(memoize: &mut Map, states: &[SpringState]) {
-        // dbg!(debug_string(states));
-        let (cur, prefix) = states.split_last().unwrap();
-        if !memoize.contains_key(prefix) {
-            memoize_prefixes(memoize, prefix);
-        }
-        let prefix_run = memoize.get(prefix).unwrap();
-        memoize.insert(
-            states.to_vec(),
-            extend_prefix_run(prefix_run, *prefix.last().unwrap(), *cur),
-        );
-    }
-    MEMOIZE.with_borrow_mut(|memoize| {
-        if !memoize.contains_key(states) {
-            memoize_prefixes(memoize, states);
-        }
-        let run = memoize.get(states).unwrap();
-        run.eq(targets)
+fn parse_input(input: Input) -> impl Iterator<Item = (Vec<SpringState>, Vec<usize>)> {
+    input.map(|l| {
+        let (states, targets) = l.split_once(" ").unwrap();
+        let states = states.chars().map(SpringState::from).collect();
+        let targets = targets.split(',').filter_map(|n| n.parse().ok()).collect();
+        (states, targets)
     })
-}
-
-fn extend_prefix_run(prefix_run: &[usize], before: SpringState, cur: SpringState) -> Vec<usize> {
-    // dbg!(prefix_run, before, cur);
-    match (prefix_run.split_last(), before, cur) {
-        (Some((n, prefix_run)), Damaged, Damaged) => {
-            let mut v = prefix_run.to_vec();
-            v.push(*n + 1);
-            v
-        }
-        (_, _, Damaged) => {
-            let mut v = prefix_run.to_vec();
-            v.push(1);
-            v
-        }
-        _ => prefix_run.to_vec(),
-    }
-    /*
-    states
-        .split(|s| *s != Damaged)
-        .map(|ss| ss.len() as usize)
-        .filter(|l| l.gt(&0))
-        .collect::<Vec<_>>()
-        */
-}
-
-fn parse_input(input: Input) -> Vec<(Vec<SpringState>, Vec<usize>)> {
-    input
-        .map(|l| {
-            let (states, targets) = l.split_once(" ").unwrap();
-            let states = states.chars().map(SpringState::from).collect();
-            let targets = targets.split(',').filter_map(|n| n.parse().ok()).collect();
-            (states, targets)
-        })
-        .collect()
 }
